@@ -12,14 +12,14 @@ from retriever import retrieve_similar_images
 from utils import list_image_files, save_model, load_model
 
 # --- Configuration ---
-DATABASE_DIR = "database_images/oxford5k"
-MODELS_DIR = "models/oxford5k_2000"
+DATABASE_DIR = "database_images"
+MODELS_DIR = "models"
 VOCAB_PATH = os.path.join(MODELS_DIR, "vocabulary.pkl")
 TFIDF_MATRIX_PATH = os.path.join(MODELS_DIR, "tfidf_matrix.pkl")
 TFIDF_TRANSFORMER_PATH = os.path.join(MODELS_DIR, "tfidf_transformer.pkl")
 DB_IMAGE_PATHS_PATH = os.path.join(MODELS_DIR, "db_image_paths.pkl")
 
-NUM_VISUAL_WORDS = 2000
+NUM_VISUAL_WORDS = 200
 TOP_N_FINAL_RESULTS = 5
 TOP_N_INITIAL_BOW_CANDIDATES = 50
 NUM_TO_SPATIAL_RERANK = 20
@@ -192,12 +192,113 @@ initial_setup_message = setup_system(
 print(f"Initial setup message: {initial_setup_message}")
 
 
+# 06/04 增加数据库和模型选择功能方便实验测试
+def get_available_databases():
+    """获取DATABASE_DIR下所有可用的数据库子目录"""
+    databases = []
+    if os.path.exists(DATABASE_DIR):
+        for item in os.listdir(DATABASE_DIR):
+            item_path = os.path.join(DATABASE_DIR, item)
+            if os.path.isdir(item_path):
+                databases.append(item)
+    return databases
+
+
+def get_available_models():
+    """获取models目录下所有可用的模型子目录"""
+    models = []
+    models_root = "models"
+    if os.path.exists(models_root):
+        for item in os.listdir(models_root):
+            item_path = os.path.join(models_root, item)
+            if os.path.isdir(item_path):
+                models.append(item)
+    return models
+
+
+def update_paths_for_database(selected_db, selected_model):
+    """根据选择的数据库和模型更新全局路径变量"""
+    global DATABASE_DIR, MODELS_DIR, VOCAB_PATH, TFIDF_MATRIX_PATH, TFIDF_TRANSFORMER_PATH, DB_IMAGE_PATHS_PATH
+
+    if selected_db:
+        DATABASE_DIR = os.path.join("database_images", selected_db)
+    else:
+        DATABASE_DIR = "database_images/oxford5k"  # 默认值
+
+    if selected_model:
+        MODELS_DIR = os.path.join("models", selected_model)
+    else:
+        MODELS_DIR = "models/oxford5k_200_AKM"  # 默认值
+
+    # 更新相关路径
+    VOCAB_PATH = os.path.join(MODELS_DIR, "vocabulary.pkl")
+    TFIDF_MATRIX_PATH = os.path.join(MODELS_DIR, "tfidf_matrix.pkl")
+    TFIDF_TRANSFORMER_PATH = os.path.join(MODELS_DIR, "tfidf_transformer.pkl")
+    DB_IMAGE_PATHS_PATH = os.path.join(MODELS_DIR, "db_image_paths.pkl")
+
+    return f"已切换到数据库: {DATABASE_DIR}, 模型目录: {MODELS_DIR}"
+
+
+def setup_system_with_params(selected_db, selected_model, force_rebuild=False):
+    """根据选择的数据库和模型设置系统"""
+    # 更新路径
+    path_update_msg = update_paths_for_database(selected_db, selected_model)
+    print(path_update_msg)
+
+    # 重置全局变量
+    global vocabulary, tfidf_matrix_db, tfidf_transformer_db, database_image_paths
+    vocabulary = None
+    tfidf_matrix_db = None
+    tfidf_transformer_db = None
+    database_image_paths = None
+
+    # 调用原有的设置函数
+    setup_msg = setup_system(force_rebuild)
+
+    return f"{path_update_msg}\n{setup_msg}"
+
+
+def search_interface_with_params(
+    query_image_path_temp, enable_spatial_reranking_ui, selected_db, selected_model
+):
+    """扩展的搜索接口函数，支持动态数据库和模型选择"""
+    # 先更新路径配置
+    update_paths_for_database(selected_db, selected_model)
+
+    # 调用原有的搜索接口
+    return search_interface(query_image_path_temp, enable_spatial_reranking_ui)
+
+
 # --- Gradio Interface ---
 with gr.Blocks(title="Image Retrieval System with Spatial Re-ranking") as demo:
     gr.Markdown("# Image Retrieval System with Spatial Re-ranking")
     gr.Markdown(
         "Upload a query image. Spatial re-ranking (inspired by Philbin et al., CVPR 2007) can be enabled."
     )
+
+    # 资源选择区域
+    with gr.Row():
+        gr.Markdown("## 资源配置")
+
+    with gr.Row():
+        available_dbs = get_available_databases()
+        db_dropdown = gr.Dropdown(
+            choices=available_dbs,
+            value=available_dbs[0] if available_dbs else "oxford5k",
+            label="选择数据库",
+            scale=1,
+        )
+
+        available_models = get_available_models()
+        model_dropdown = gr.Dropdown(
+            choices=available_models,
+            value=available_models[0] if available_models else "oxford5k_200_AKM",
+            label="选择模型",
+            scale=1,
+        )
+
+        load_resources_button = gr.Button("加载选定资源", scale=1)
+        refresh_button = gr.Button("刷新可用资源列表", scale=1)
 
     with gr.Row():
         status_textbox = gr.Textbox(
@@ -206,7 +307,11 @@ with gr.Blocks(title="Image Retrieval System with Spatial Re-ranking") as demo:
             interactive=False,
             scale=3,
         )
-        rebuild_button = gr.Button("Rebuild Index/Models", scale=1)
+        rebuild_button = gr.Button("重建索引/模型", scale=1)
+
+    # 查询区域
+    with gr.Row():
+        gr.Markdown("## 图像检索")
 
     with gr.Row():
         query_img_input = gr.Image(type="filepath", label="Query Image", scale=1)
@@ -223,23 +328,46 @@ with gr.Blocks(title="Image Retrieval System with Spatial Re-ranking") as demo:
                 object_fit="contain",
                 height="auto",
             )
-            scores_output = gr.Textbox(
-                label="Scores / Info", lines=TOP_N_FINAL_RESULTS
-            )  # Lower L2 BoW is more similar
+            scores_output = gr.Textbox(label="Scores / Info", lines=TOP_N_FINAL_RESULTS)
+
+    # 事件绑定
+    def refresh_resources():
+        new_dbs = get_available_databases()
+        new_models = get_available_models()
+        return (
+            gr.Dropdown(choices=new_dbs, value=new_dbs[0] if new_dbs else None),
+            gr.Dropdown(
+                choices=new_models, value=new_models[0] if new_models else None
+            ),
+            "资源列表已刷新",
+        )
+
+    refresh_button.click(
+        refresh_resources, outputs=[db_dropdown, model_dropdown, status_textbox]
+    )
+
+    load_resources_button.click(
+        setup_system_with_params,
+        inputs=[db_dropdown, model_dropdown, gr.State(False)],
+        outputs=[status_textbox],
+    )
 
     query_img_input.upload(
-        search_interface,
-        inputs=[query_img_input, enable_spatial_cb],
+        search_interface_with_params,
+        inputs=[query_img_input, enable_spatial_cb, db_dropdown, model_dropdown],
         outputs=[gallery_output, scores_output],
     )
-    # Clear gallery and scores when image is cleared or new one is uploaded (via change event)
+
     query_img_input.change(
         lambda: (None, None), outputs=[gallery_output, scores_output]
     )
 
     rebuild_button.click(
-        lambda: setup_system(force_rebuild=True), inputs=[], outputs=[status_textbox]
+        lambda db, model: setup_system_with_params(db, model, force_rebuild=True),
+        inputs=[db_dropdown, model_dropdown],
+        outputs=[status_textbox],
     )
+
 
 if __name__ == "__main__":
     if vocabulary is None or tfidf_matrix_db is None or tfidf_transformer_db is None:
