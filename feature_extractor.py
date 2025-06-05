@@ -2,6 +2,7 @@
 import cv2
 import numpy as np
 from typing import List, Tuple, Optional
+from tqdm import tqdm
 
 
 def extract_sift_features(
@@ -43,7 +44,7 @@ def extract_descriptors_for_database(image_paths):
     """
     all_descriptors = []
     valid_image_paths = []
-    for image_path in image_paths:
+    for image_path in tqdm(image_paths, desc="Extracting SIFT features"):
         _, descriptors, _ = extract_sift_features(image_path)  # Adjusted unpacking
         if descriptors is not None:
             all_descriptors.append(descriptors)

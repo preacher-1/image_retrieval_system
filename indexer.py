@@ -2,6 +2,7 @@
 import numpy as np
 from sklearn.feature_extraction.text import TfidfTransformer
 from feature_extractor import extract_sift_features
+from tqdm import tqdm
 
 
 def image_to_bow(descriptors, vocabulary_model):
@@ -33,7 +34,7 @@ def create_tfidf_index(
     doc_term_matrix_list = []
     valid_image_paths_for_index = []
 
-    for image_path in image_paths:
+    for image_path in tqdm(image_paths, desc="Creating TF-IDF index"):
         _, descriptors, _ = feature_extractor_func(image_path)
         if descriptors is not None:
             bow_vector = image_to_bow(descriptors, vocabulary_model)
