@@ -12,10 +12,7 @@ from feature_extractor import (
     extract_sift_features,
     extract_descriptors_for_database,
 )
-from vocabulary_builder import (
-    build_vocabulary_akm,
-    build_vocabulary,
-)  # 根据你的选择导入
+from vocabulary_builder import build_vocabulary
 from indexer import create_tfidf_index
 from retriever import retrieve_similar_images
 from utils import list_image_files, save_model, load_model
@@ -24,14 +21,11 @@ from utils import list_image_files, save_model, load_model
 OXFORD_DATA_DIR = "oxford5k"  # 包含 images 和 groundtruth.json 的目录路径
 OXFORD_IMAGE_DIR = os.path.join(OXFORD_DATA_DIR, "images")
 GROUNDTRUTH_JSON_PATH = os.path.join(OXFORD_DATA_DIR, "groundtruth.json")
-MODELS_DIR_EVAL = f"results/models_oxford_eval/AKM_1000"  # 评估模型的存储路径
+MODELS_DIR_EVAL = f"results/models_oxford_eval"  # 评估模型的存储路径
 
 # --- 系统参数 ---
 PARAMS = {
-    "VOCAB_BUILDER": "AKM",  # "MiniBatchKMeans"/"AKM"
     "NUM_VISUAL_WORDS": 1000,  # 论文中在5K数据集上使用1M达到峰值，可尝试1k, 10k, 50k TODO
-    "AKM_MAX_ITER": 50,  # AKM 最大迭代次数
-    "AKM_TOL": 1e-4,  # AKM 收敛容忍度
     "ENABLE_SPATIAL_RERANKING": True,  # 是否启用空间重排序
     "TOP_N_INITIAL_BOW_CANDIDATES": 200,  # BoW 初步检索候选数量 (用于空间重排序)
     "NUM_TO_SPATIALLY_RERANK": 100,  # 实际进行空间验证的候选数量 TODO
@@ -218,20 +212,11 @@ def main():
             return
 
         print(
-            f"使用 {PARAMS['VOCAB_BUILDER']} 构建包含 {PARAMS['NUM_VISUAL_WORDS']} 个词的词汇表..."
+            f"使用 MiniBatchKMeans 构建包含 {PARAMS['NUM_VISUAL_WORDS']} 个词的词汇表..."
         )
-        if PARAMS["VOCAB_BUILDER"] == "AKM":
-            vocabulary = build_vocabulary_akm(
-                all_db_descriptors,
-                PARAMS["NUM_VISUAL_WORDS"],
-                max_iter=PARAMS["AKM_MAX_ITER"],
-                tol=PARAMS["AKM_TOL"],
-                random_state=42,
-            )
-        else:  # 默认使用 MiniBatchKMeans
-            vocabulary = build_vocabulary(
-                all_db_descriptors, PARAMS["NUM_VISUAL_WORDS"], random_state=42
-            )
+        vocabulary = build_vocabulary(
+            all_db_descriptors, PARAMS["NUM_VISUAL_WORDS"], random_state=42
+        )
 
         if vocabulary is None:
             print("构建词汇表失败。退出。")
@@ -329,10 +314,8 @@ def main():
     }
     results_filename = f"results_oxford5k_{PARAMS['VOCAB_BUILDER']}_{PARAMS['NUM_VISUAL_WORDS']}_spatial_{PARAMS['ENABLE_SPATIAL_RERANKING']}.json"
     results_filepath = os.path.join(MODELS_DIR_EVAL, results_filename)
-    with open(results_filepath, "w", encoding="utf-8") as f: 
-        json.dump(
-            results_summary, f, indent=4, ensure_ascii=False
-        )
+    with open(results_filepath, "w", encoding="utf-8") as f:
+        json.dump(results_summary, f, indent=4, ensure_ascii=False)
     print(f"\n结果概要已保存到: {results_filepath}")
 
 

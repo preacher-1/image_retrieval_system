@@ -34,7 +34,7 @@
 
 ### 1.1 系统概述
 
-该图像检索系统是基于视觉词袋（Bag-of-Words）模型的内容检索系统，采用 SIFT 特征提取和 TF-IDF 加权机制，并集成了空间重排序功能以提高检索精度。系统支持大规模图像数据库的索引构建和实时查询。
+该图像检索系统是基于视觉词袋（Bag-of-Words）模型的内容检索系统，采用 SIFT 特征提取和 TF-IDF 加权机制，新增集成了空间重排序（Spatial Re-ranking）功能以显著提高检索精度。系统支持大规模图像数据库的索引构建、实时查询和动态资源配置。
 
 ### 1.2 主要功能
 
@@ -47,10 +47,10 @@
 
 ### 1.3 技术特点
 
--   **可扩展性**：支持大规模图像数据库
+-   **可扩展性**：支持大规模图像数据库和多配置管理
 -   **高精度**：结合 BoW 和空间验证的双重检索策略
 -   **实时性**：预构建索引，支持快速查询
--   **易用性**：Web 界面，支持拖拽上传和实时预览
+-   **易用性**：Web 界面支持拖拽上传和实时配置切换
 
 ---
 
@@ -61,14 +61,15 @@
 ```
 image_retrieval_system/
 ├── app.py                    # 主应用程序
-├── feature_extractor.py      # 特征提取模块
+├── feature_extractor.py      # SIFT特征提取模块
 ├── vocabulary_builder.py     # 词汇构建模块
-├── indexer.py               # 索引构建模块
-├── retriever.py             # 检索核心模块
-├── spatial_verifier.py      # 空间验证模块
+├── indexer.py               # TF-IDF索引构建模块
+├── retriever.py             # 图像检索核心模块
+├── spatial_verifier.py      # 空间重排序模块
 ├── utils.py                 # 工具函数
+├── evaluation_oxford5k.py   # Oxford5K数据集评估脚本
 ├── requirements.txt         # 依赖包列表
-├── database_images/         # 数据库图像目录
+├── database_images/         # 图像数据库目录（支持多配置）
 |   ├── test01/
 |   │   ├── img01.jpg
 |   │   ├── img02.jpg
@@ -93,14 +94,14 @@ image_retrieval_system/
 | `vocabulary_builder.py` | 视觉词汇构建   | `build_vocabulary()`                                            |
 | `indexer.py`            | 索引构建       | `image_to_bow()`, `create_tfidf_index()`                        |
 | `retriever.py`          | 检索核心       | `retrieve_similar_images()`                                     |
-| `spatial_verifier.py`   | 空间验证       | `spatial_re_rank()`, `verify_transform()`                       |
-| `app.py`                | 系统集成和界面 | `setup_system()`, `search_interface()`                          |
+| `spatial_verifier.py`   | 空间重排序     | `spatial_re_rank()`, `verify_transform()`                       |
+| `app.py`                | 系统集成和界面 | `setup_system_with_params()`, `search_interface_with_params()`  |
 
 ### 2.3 数据流向
 
 ```
-Raw Images → SIFT Features → Visual Vocabulary → BoW Vectors
-→ TF-IDF Index → Retrieval Results → Spatial Re-ranking → Final Results
+输入图像 → SIFT 特征 → 视觉词汇 → 词袋向量 → TF-IDF 索引 →
+初步检索结果 → 空间重排序 (RANSAC) → 最终排序结果 → 用户界面展示
 ```
 
 ---
@@ -125,7 +126,10 @@ Raw Images → SIFT Features → Visual Vocabulary → BoW Vectors
 3. 使用预构建的词汇表将查询图像转换为 BoW 向量
 4. 计算与数据库中所有图像的相似度
 5. 返回初步检索结果
-6. 可选：对候选结果进行空间重排序验证
+6. 对候选结果进行空间重排序验证（可选）：
+    - 提取候选图像的 SIFT 特征进行特征匹配
+    - 使用 RANSAC 进行几何验证
+    - 计算空间得分并重新排序
 7. 返回最终排序结果
 
 ```mermaid
@@ -135,27 +139,29 @@ graph TD
     B -->|存在| D[加载预训练模型]
 
     C --> C1[提取数据库图像SIFT特征]
-    C1 --> C2[构建视觉词汇表]
+    C1 --> C2[MiniBatchKMeans构建视觉词汇]
     C2 --> C3[创建TF-IDF索引]
     C3 --> C4[保存模型文件]
     C4 --> D
 
     D --> E[等待查询请求]
-    E --> F[用户上传查询图像]
+    E --> F[用户上传查询图像并选择配置]
     F --> G[提取查询图像SIFT特征]
     G --> H[转换为BoW向量]
-    H --> I[计算相似度]
-    I --> J[初步排序]
+    H --> I[计算余弦相似度]
+    I --> J[初步BoW排序]
 
     J --> K{启用空间重排序?}
-    K -->|是| L[提取候选图像特征]
-    L --> M[RANSAC几何验证]
-    M --> N[空间重排序]
-    N --> O[返回最终结果]
+    K -->|是| L[提取候选图像SIFT特征]
+    L --> M[特征匹配 - Lowe's ratio test]
+    M --> N[RANSAC几何验证]
+    N --> O[计算空间得分]
+    O --> P[基于IDF权重重排序]
+    P --> Q[返回最终结果]
 
-    K -->|否| O
-    O --> P[显示检索结果]
-    P --> E
+    K -->|否| Q
+    Q --> R[显示检索结果]
+    R --> E
 ```
 
 ---
@@ -296,43 +302,93 @@ def retrieve_similar_images(query_image_path, vocabulary_model,
 #### 5.2.1 Gradio 界面设计
 
 ```python
-def create_interface():
-    """创建Gradio界面"""
-    with gr.Blocks(title="Image Retrieval System") as demo:
-        gr.Markdown("# 图像检索系统")
+# --- Gradio Interface ---
+with gr.Blocks(title="图像检索系统") as demo:
+    gr.Markdown("# 图像检索系统")
+    gr.Markdown(
+        "上传查询图像。可以启用空间重排序（灵感来自Philbin等人，CVPR 2007）。"
+    )
 
-        with gr.Row():
-            # 查询图像上传
-            query_input = gr.Image(type="filepath", label="查询图像")
+    # 资源选择区域
+    with gr.Row():
+        gr.Markdown("## 资源配置")
 
-            # 控制选项
-            spatial_checkbox = gr.Checkbox(
-                label="启用空间重排序",
-                value=True
-            )
-
-        with gr.Row():
-            # 结果展示
-            gallery_output = gr.Gallery(
-                label="检索结果",
-                columns=5,
-                rows=1
-            )
-
-            # 得分信息
-            scores_output = gr.Textbox(
-                label="相似度得分",
-                lines=5
-            )
-
-        # 绑定事件
-        query_input.upload(
-            search_interface,
-            inputs=[query_input, spatial_checkbox],
-            outputs=[gallery_output, scores_output]
+    with gr.Row():
+        available_dbs = get_available_databases()
+        db_dropdown = gr.Dropdown(
+            choices=available_dbs,
+            value=available_dbs[0] if available_dbs else "Choose Database",
+            label="选择数据库",
+            scale=1,
         )
 
-    return demo
+        available_models = get_available_models()
+        model_dropdown = gr.Dropdown(
+            choices=available_models,
+            value=available_models[0] if available_models else "Choose Model",
+            label="选择模型",
+            scale=1,
+        )
+
+        load_resources_button = gr.Button("加载选定资源", scale=1)
+        refresh_button = gr.Button("刷新可用资源列表", scale=1)
+
+    with gr.Row():
+        status_textbox = gr.Textbox(
+            value=initial_setup_message,
+            label="System Status",
+            interactive=False,
+            scale=3,
+        )
+        rebuild_button = gr.Button("重建索引/模型", scale=1)
+
+    # 查询区域
+    with gr.Row():
+        gr.Markdown("## 图像检索")
+
+    with gr.Row():
+        query_img_input = gr.Image(type="filepath", label="Query Image", scale=1)
+        with gr.Column(scale=2):
+            enable_spatial_cb = gr.Checkbox(
+                label="Enable Spatial Re-ranking", value=True
+            )
+            gallery_output = gr.Gallery(
+                label="Retrieved Images",
+                show_label=True,
+                elem_id="gallery",
+                columns=[TOP_N_FINAL_RESULTS],
+                rows=[1],
+                object_fit="contain",
+                height="auto",
+            )
+            scores_output = gr.Textbox(label="Scores / Info", lines=TOP_N_FINAL_RESULTS)
+
+
+    refresh_button.click(
+        refresh_resources, outputs=[db_dropdown, model_dropdown, status_textbox]
+    )
+
+    load_resources_button.click(
+        setup_system_with_params,
+        inputs=[db_dropdown, model_dropdown, gr.State(False)],
+        outputs=[status_textbox],
+    )
+
+    query_img_input.upload(
+        search_interface_with_params,
+        inputs=[query_img_input, enable_spatial_cb, db_dropdown, model_dropdown],
+        outputs=[gallery_output, scores_output],
+    )
+
+    query_img_input.change(
+        lambda: (None, None), outputs=[gallery_output, scores_output]
+    )
+
+    rebuild_button.click(
+        lambda db, model: setup_system_with_params(db, model, force_rebuild=True),
+        inputs=[db_dropdown, model_dropdown],
+        outputs=[status_textbox],
+    )
 ```
 
 #### 5.2.2 系统初始化
@@ -366,4 +422,3 @@ def setup_system(force_rebuild=False):
 4. **结果展示**：以画廊形式展示检索结果
 5. **得分显示**：显示相似度得分和排序信息
 6. **模型管理**：支持重建索引和模型
-

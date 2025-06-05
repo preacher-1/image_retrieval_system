@@ -219,17 +219,10 @@ def get_available_models():
 def update_paths_for_database(selected_db, selected_model):
     """根据选择的数据库和模型更新全局路径变量"""
     global DATABASE_DIR, MODELS_DIR, VOCAB_PATH, TFIDF_MATRIX_PATH, TFIDF_TRANSFORMER_PATH, DB_IMAGE_PATHS_PATH
-
-    if selected_db:
-        DATABASE_DIR = os.path.join("database_images", selected_db)
-    else:
-        DATABASE_DIR = "database_images/oxford5k"  # 默认值
-
-    if selected_model:
-        MODELS_DIR = os.path.join("models", selected_model)
-    else:
-        MODELS_DIR = "models/oxford5k_200_AKM"  # 默认值
-
+    
+    DATABASE_DIR = os.path.join("database_images", selected_db)
+    MODELS_DIR = os.path.join("models", selected_model)
+    
     # 更新相关路径
     VOCAB_PATH = os.path.join(MODELS_DIR, "vocabulary.pkl")
     TFIDF_MATRIX_PATH = os.path.join(MODELS_DIR, "tfidf_matrix.pkl")
@@ -270,10 +263,10 @@ def search_interface_with_params(
 
 
 # --- Gradio Interface ---
-with gr.Blocks(title="Image Retrieval System with Spatial Re-ranking") as demo:
-    gr.Markdown("# Image Retrieval System with Spatial Re-ranking")
+with gr.Blocks(title="图像检索系统") as demo:
+    gr.Markdown("# 图像检索系统")
     gr.Markdown(
-        "Upload a query image. Spatial re-ranking (inspired by Philbin et al., CVPR 2007) can be enabled."
+        "上传查询图像。可以启用空间重排序（灵感来自Philbin等人，CVPR 2007）。"
     )
 
     # 资源选择区域
@@ -284,7 +277,7 @@ with gr.Blocks(title="Image Retrieval System with Spatial Re-ranking") as demo:
         available_dbs = get_available_databases()
         db_dropdown = gr.Dropdown(
             choices=available_dbs,
-            value=available_dbs[0] if available_dbs else "oxford5k",
+            value=available_dbs[0] if available_dbs else "Choose Database",
             label="选择数据库",
             scale=1,
         )
@@ -292,7 +285,7 @@ with gr.Blocks(title="Image Retrieval System with Spatial Re-ranking") as demo:
         available_models = get_available_models()
         model_dropdown = gr.Dropdown(
             choices=available_models,
-            value=available_models[0] if available_models else "oxford5k_200_AKM",
+            value=available_models[0] if available_models else "Choose Model",
             label="选择模型",
             scale=1,
         )
