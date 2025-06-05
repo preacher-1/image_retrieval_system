@@ -60,16 +60,29 @@
 
 ```
 image_retrieval_system/
-├── app.py                    # 主应用程序和Gradio界面
-├── feature_extractor.py      # SIFT特征提取模块
-├── vocabulary_builder.py     # 视觉词汇构建模块
-├── indexer.py               # TF-IDF索引构建模块
-├── retriever.py             # 图像检索核心模块
-├── spatial_verifier.py      # 空间重排序模块
-├── utils.py                 # 工具函数模块
-├── database_images/         # 图像数据库目录
+├── app.py                    # 主应用程序
+├── feature_extractor.py      # 特征提取模块
+├── vocabulary_builder.py     # 词汇构建模块
+├── indexer.py               # 索引构建模块
+├── retriever.py             # 检索核心模块
+├── spatial_verifier.py      # 空间验证模块
+├── utils.py                 # 工具函数
+├── requirements.txt         # 依赖包列表
+├── database_images/         # 数据库图像目录
+|   ├── test01/
+|   │   ├── img01.jpg
+|   │   ├── img02.jpg
+|   │   └── ...
+|   ├── test02/
+|   │   └── ...
 ├── models/                  # 模型存储目录
-└── query_images/            # 查询图像目录
+│   └── test01/
+|   │   ├── vocabulary.pkl       # 词汇表模型
+│   │   ├── tfidf_matrix.pkl    # TF-IDF矩阵
+│   │   └── ...
+│   ├── test02/
+│   │   └── ...
+└── query_images/           # 查询图像目录（可选）
 ```
 
 ### 2.2 核心组件说明
@@ -86,7 +99,7 @@ image_retrieval_system/
 ### 2.3 数据流向
 
 ```
-Raw Images → SIFT Features → Visual Vocabulary → BoW Vectors 
+Raw Images → SIFT Features → Visual Vocabulary → BoW Vectors
 → TF-IDF Index → Retrieval Results → Spatial Re-ranking → Final Results
 ```
 
@@ -354,26 +367,3 @@ def setup_system(force_rebuild=False):
 5. **得分显示**：显示相似度得分和排序信息
 6. **模型管理**：支持重建索引和模型
 
----
-
-## 系统部署和使用
-
-### 环境要求
-
-```
-# requirements.txt
-gradio==5.31.0
-numpy==1.26.4
-opencv_contrib_python==4.11.0.86
-opencv_python==4.11.0.86
-Pillow==11.1.0
-scikit_learn==1.6.1
-tqdm==4.67.1
-```
-
-### 运行步骤
-
-1. 安装依赖包
-2. 准备图像数据库
-3. 运行 `python app.py`
-4. 访问 Web 界面进行查询
