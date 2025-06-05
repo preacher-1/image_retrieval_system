@@ -152,8 +152,8 @@ def main():
     # 1. 数据准备 (加载 ground truth)
     print("\n--- 加载 Oxford 5K Ground Truth ---")
     if not os.path.exists(OXFORD_IMAGE_DIR):
-        print(f"错误: 牛津5K图像目录未找到于 {OXFORD_IMAGE_DIR}")
-        print("请确保已下载牛津建筑数据集并将图像放入该目录。")
+        print(f"错误: 图像目录未找到于 {OXFORD_IMAGE_DIR}")
+        print("请确保已下载数据集并将图像放入该目录。")
         return
 
     queries = load_ground_truth(GROUNDTRUTH_JSON_PATH, OXFORD_IMAGE_DIR)
@@ -270,7 +270,7 @@ def main():
             f"处理查询 {i+1}/{len(queries)}: 地标 '{query_info['landmark_name']}', 图片 '{os.path.basename(query_info['query_image_path'])}'..."
         )
 
-        # 对于简化版，查询特征由 retriever 内部从整个 query_image_path 提取
+        # 查询特征由 retriever 内部从整个 query_image_path 提取
         query_time_start = time.time()
 
         # retrieve_similar_images 应返回完整的排序列表以计算 AP
@@ -329,10 +329,10 @@ def main():
     }
     results_filename = f"results_oxford5k_{PARAMS['VOCAB_BUILDER']}_{PARAMS['NUM_VISUAL_WORDS']}_spatial_{PARAMS['ENABLE_SPATIAL_RERANKING']}.json"
     results_filepath = os.path.join(MODELS_DIR_EVAL, results_filename)
-    with open(results_filepath, "w", encoding="utf-8") as f:  # 指定utf-8编码
+    with open(results_filepath, "w", encoding="utf-8") as f: 
         json.dump(
             results_summary, f, indent=4, ensure_ascii=False
-        )  # ensure_ascii=False 以正确显示中文
+        )
     print(f"\n结果概要已保存到: {results_filepath}")
 
 
