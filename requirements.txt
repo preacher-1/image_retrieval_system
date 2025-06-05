@@ -1,0 +1,7 @@
+gradio==5.31.0
+numpy==1.26.4
+opencv_contrib_python==4.11.0.86
+opencv_python==4.11.0.86
+Pillow==11.1.0
+scikit_learn==1.6.1
+tqdm==4.67.1
